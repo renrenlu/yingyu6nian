@@ -27,7 +27,7 @@ test("server-renders the finished English learning site", async () => {
   assert.match(html, /不规则动词闯关/);
   assert.match(html, /语法地图/);
   assert.match(html, /6 题结课挑战/);
-  assert.match(html, /property="og:image" content="http:\/\/localhost(?::3000)?\/og\.png"/i);
+  assert.match(html, /property="og:image" content="https:\/\/english-playbook-p78-90\.renren49\.chatgpt\.site\/og\.png"/i);
   assert.doesNotMatch(html, /codex-preview|Your site is taking shape|react-loading-skeleton/i);
 });
 

@@ -6,6 +6,9 @@ import { wordVisuals } from "./vocab-visuals";
 
 type VocabItem = { en: string; zh: string };
 
+const assetBase = process.env.NEXT_PUBLIC_BASE_PATH || "";
+const assetPath = (path: string) => `${assetBase}${path}`;
+
 const vocabulary: Record<string, { title: string; color: string; items: VocabItem[] }> = {
   "Unit 1": {
     title: "新邻居与新朋友",
@@ -203,8 +206,8 @@ export default function Home() {
           </div>
           <div className="hero-board" aria-label="教材插图拼贴">
             <div className="board-note note-one">tap → listen</div>
-            <div className="board-card fruit-card"><img src="/textbook/fruit.jpg" alt="教材中的苹果和橙子插图" /></div>
-            <div className="board-card sheep-card"><img src="/textbook/sheep.jpg" alt="教材中的绵羊和老鼠插图" /></div>
+            <div className="board-card fruit-card"><img src={assetPath("/textbook/fruit.jpg")} alt="教材中的苹果和橙子插图" /></div>
+            <div className="board-card sheep-card"><img src={assetPath("/textbook/sheep.jpg")} alt="教材中的绵羊和老鼠插图" /></div>
             <div className="word-chip chip-one">went</div>
             <div className="word-chip chip-two">twelfth</div>
             <button className="big-speaker" onClick={() => speak("English is fun!")} aria-label="朗读 English is fun">♪</button>
@@ -345,7 +348,7 @@ export default function Home() {
             </div>
             <div className="picture-rule">
               <div className="picture-copy"><p className="section-kicker">PICTURE RULE</p><h3>可数名词 vs. 不可数名词</h3><p><b>可数：</b>能数出 1、2、3，可以说 a/an，也能变复数。<br /><b>不可数：</b>通常不能一个个数，要借助容器或单位。</p><div className="sentence-pairs"><button onClick={() => speak("an apple, three apples")}>an apple → three apples ♪</button><button onClick={() => speak("a glass of water")}>water → a glass of water ♪</button></div></div>
-              <div className="picture-strip"><figure><img src="/textbook/fruit.jpg" alt="苹果和橙子" /><figcaption>apples / oranges</figcaption></figure><figure><img src="/textbook/leaf.jpg" alt="一片树叶" /><figcaption>a leaf → leaves</figcaption></figure><figure><img src="/textbook/sheep.jpg" alt="绵羊和老鼠" /><figcaption>sheep / mice</figcaption></figure></div>
+              <div className="picture-strip"><figure><img src={assetPath("/textbook/fruit.jpg")} alt="苹果和橙子" /><figcaption>apples / oranges</figcaption></figure><figure><img src={assetPath("/textbook/leaf.jpg")} alt="一片树叶" /><figcaption>a leaf → leaves</figcaption></figure><figure><img src={assetPath("/textbook/sheep.jpg")} alt="绵羊和老鼠" /><figcaption>sheep / mice</figcaption></figure></div>
             </div>
           </div>
         </section>
@@ -363,7 +366,7 @@ export default function Home() {
           <div className="calendar-lab">
             <div className="calendar-copy"><p className="section-kicker">CALENDAR LAB</p><h3>星期与月份</h3><p>星期和月份的首字母永远大写。搭配日期时，星期前用 <b>on</b>，月份前用 <b>in</b>。</p><button onClick={() => speak("My birthday is on Friday, the twelfth of June.")}>♪ 听完整日期</button></div>
             <div className="calendar-words"><div><h4>Days</h4>{days.map((day) => <button key={day} onClick={() => speak(day)}>{day}<span>♪</span></button>)}</div><div><h4>Months</h4>{months.map((month) => <button key={month} onClick={() => speak(month)}>{month}<span>♪</span></button>)}</div></div>
-            <div className="calendar-pictures"><img src="/textbook/cake.jpg" alt="教材中的生日蛋糕插图" /><img src="/textbook/rain.jpg" alt="教材中的雨天插图" /></div>
+            <div className="calendar-pictures"><img src={assetPath("/textbook/cake.jpg")} alt="教材中的生日蛋糕插图" /><img src={assetPath("/textbook/rain.jpg")} alt="教材中的雨天插图" /></div>
           </div>
         </section>
 

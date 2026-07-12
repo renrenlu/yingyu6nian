@@ -17,8 +17,10 @@ const vocabularyOrder = [
   "thousands of", "take a trip", "a drop of",
 ] as const;
 
+const assetBase = process.env.NEXT_PUBLIC_BASE_PATH || "";
+
 export const wordVisuals: Record<string, string> = Object.fromEntries(
-  vocabularyOrder.map((word, index) => [word, `/vocab-art/v${String(index + 1).padStart(3, "0")}.webp`]),
+  vocabularyOrder.map((word, index) => [word, `${assetBase}/vocab-art/v${String(index + 1).padStart(3, "0")}.webp`]),
 );
 
 export const vocabularyVisualCount = vocabularyOrder.length;
