@@ -66,8 +66,12 @@ test("includes speech, practice, verified vocabulary details, source imagery, an
   assert.equal((vocabularyVisualSource.match(/"[^\"]+"/g) ?? []).length, 93);
   assert.equal(visualFiles.filter((file) => /^v\d{3}\.webp$/.test(file)).length, 93);
   assert.match(audioManifest, /Record<string, string>/);
-  assert.equal((audioManifest.match(/\/audio\/tts\/[a-f0-9]{20}\.m4a/g) ?? []).length, 336);
-  assert.equal(audioFiles.filter((file) => /^[a-f0-9]{20}\.m4a$/.test(file)).length, 336);
+  assert.equal((audioManifest.match(/\/audio\/tts\/[a-f0-9]{20}\.m4a/g) ?? []).length, 548);
+  assert.equal(audioFiles.filter((file) => /^[a-f0-9]{20}\.m4a$/.test(file)).length, 548);
+  assert.match(audioManifest, /"Welcome to English Playbook\. Let’s learn English together!"/);
+  assert.match(audioManifest, /"write\. wrote"/);
+  assert.match(audioManifest, /"hundredth"/);
+  assert.match(audioManifest, /"December"/);
   assert.match(audioGenerator, /KOKORO_VOICE \|\| "bf_emma"/);
   assert.match(audioGenerator, /cleanForSpeech/);
   assert.match(audioBatch, /lang="en-gb"/);

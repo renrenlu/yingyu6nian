@@ -18,11 +18,56 @@ const batchScript = path.join(root, "scripts", "kokoro-batch.py");
 const voice = process.env.KOKORO_VOICE || "bf_emma";
 const speed = Number(process.env.KOKORO_SPEED || "0.90");
 
+const irregularVerbs = [
+  ["be", "was / were"], ["become", "became"], ["begin", "began"], ["blow", "blew"], ["break", "broke"],
+  ["bring", "brought"], ["build", "built"], ["buy", "bought"], ["catch", "caught"], ["come", "came"],
+  ["dig", "dug"], ["do", "did"], ["draw", "drew"], ["drink", "drank"], ["drive", "drove"], ["eat", "ate"],
+  ["fall", "fell"], ["feed", "fed"], ["feel", "felt"], ["find", "found"], ["fly", "flew"], ["get", "got"],
+  ["give", "gave"], ["go", "went"], ["grow", "grew"], ["have", "had"], ["hear", "heard"], ["keep", "kept"],
+  ["know", "knew"], ["leave", "left"], ["make", "made"], ["meet", "met"], ["pay", "paid"], ["read", "read"],
+  ["ride", "rode"], ["rise", "rose"], ["run", "ran"], ["say", "said"], ["see", "saw"], ["sell", "sold"],
+  ["send", "sent"], ["sing", "sang"], ["sit", "sat"], ["sleep", "slept"], ["spend", "spent"], ["stand", "stood"],
+  ["steal", "stole"], ["stick", "stuck"], ["swim", "swam"], ["take", "took"], ["teach", "taught"],
+  ["tell", "told"], ["think", "thought"], ["throw", "threw"], ["wake", "woke"], ["wear", "wore"], ["win", "won"], ["write", "wrote"],
+];
+
+const grammarExamples = [
+  "She gives me her book. The blue one is hers.",
+  "box → boxes · library → libraries · child → children",
+  "in May · on Monday · at 4 p.m.",
+  "She likes art. Does she like art?",
+  "They are painting a picture now.",
+  "She went to Beijing. What did she do?",
+  "We will visit Shanghai. I am going to buy food.",
+  "You should warm up. You mustn’t run here.",
+  "Where do you live? Why do you like it?",
+];
+
+const cardinalWords = [
+  "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten",
+  "eleven", "twelve", "thirteen", "fourteen", "fifteen", "sixteen", "seventeen", "eighteen", "nineteen", "twenty",
+  "twenty-one", "twenty-two", "twenty-three", "twenty-four", "twenty-five", "twenty-six", "twenty-seven", "twenty-eight", "twenty-nine", "thirty",
+  "forty", "fifty", "sixty", "seventy", "eighty", "ninety", "one hundred", "one thousand",
+];
+
+const ordinalWords = [
+  "first", "second", "third", "fourth", "fifth", "sixth", "seventh", "eighth", "ninth", "tenth",
+  "eleventh", "twelfth", "thirteenth", "fourteenth", "fifteenth", "sixteenth", "seventeenth", "eighteenth", "nineteenth", "twentieth",
+  "twenty-first", "twenty-second", "twenty-third", "thirtieth", "fortieth", "fiftieth", "hundredth",
+];
+
+const days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+const months = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+
 function cleanForSpeech(text) {
   return text
     .replaceAll("…", "")
     .replaceAll("one’s", "one's")
     .replaceAll("I’m", "I'm")
+    .replaceAll("mustn’t", "mustn't")
+    .replaceAll("→", ", ")
+    .replaceAll("·", ". ")
+    .replace(/\s*\/\s*/g, " or ")
     .replace(/\bPS\b/g, "P. S.")
     .replace(/\bX-ray\b/gi, "X ray")
     .trim();
@@ -41,6 +86,24 @@ function collectTexts() {
   for (const size of unitSizes) {
     texts.push(details.slice(offset, offset + size).map(([word]) => word).join(". "));
     offset += size;
+  }
+
+  texts.push(
+    "Welcome to English Playbook. Let’s learn English together!",
+    "English is fun!",
+    "Yesterday, I went to the park and saw my friends.",
+    ...grammarExamples,
+    "an apple, three apples",
+    "a glass of water",
+    ...cardinalWords,
+    ...ordinalWords,
+    "My birthday is on Friday, the twelfth of June.",
+    ...days,
+    ...months,
+  );
+
+  for (const [base, past] of irregularVerbs) {
+    texts.push(base, `${base}. ${past}`);
   }
 
   return [...new Set(texts.map((text) => text.trim()).filter(Boolean))];
