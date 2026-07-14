@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { audioManifest } from "./audio-manifest";
 import { wordDetails } from "./vocab-details";
 import { wordVisuals } from "./vocab-visuals";
 
@@ -124,6 +125,7 @@ const quiz = [
 export default function Home() {
   const [rate, setRate] = useState(0.62);
   const [speaking, setSpeaking] = useState("");
+  const audioRef = useRef<HTMLAudioElement | null>(null);
   const [unit, setUnit] = useState("Unit 1");
   const [selectedWord, setSelectedWord] = useState("");
   const [verbIndex, setVerbIndex] = useState(0);
@@ -142,11 +144,18 @@ export default function Home() {
   useEffect(() => {
     const closeOnEscape = (event: KeyboardEvent) => event.key === "Escape" && setSelectedWord("");
     window.addEventListener("keydown", closeOnEscape);
-    return () => window.removeEventListener("keydown", closeOnEscape);
+    return () => {
+      window.removeEventListener("keydown", closeOnEscape);
+      audioRef.current?.pause();
+      window.speechSynthesis?.cancel();
+    };
   }, []);
 
-  const speak = (text: string) => {
-    if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
+  const speakWithBrowserVoice = (text: string) => {
+    if (!("speechSynthesis" in window)) {
+      setSpeaking("");
+      return;
+    }
     window.speechSynthesis.cancel();
     const utterance = new SpeechSynthesisUtterance(text.replace("…", ""));
     const voices = window.speechSynthesis.getVoices();
@@ -157,6 +166,39 @@ export default function Home() {
     utterance.onend = () => setSpeaking("");
     utterance.onerror = () => setSpeaking("");
     window.speechSynthesis.speak(utterance);
+  };
+
+  const speak = (text: string) => {
+    if (typeof window === "undefined") return;
+    audioRef.current?.pause();
+    audioRef.current = null;
+    window.speechSynthesis?.cancel();
+
+    const recordedPath = audioManifest[text];
+    if (!recordedPath) {
+      speakWithBrowserVoice(text);
+      return;
+    }
+
+    const audio = new Audio(assetPath(recordedPath));
+    audioRef.current = audio;
+    audio.preload = "auto";
+    audio.playbackRate = rate === 0.62 ? 0.86 : 1;
+    audio.preservesPitch = true;
+    let usedFallback = false;
+    const fallbackOnce = () => {
+      if (usedFallback || audioRef.current !== audio) return;
+      usedFallback = true;
+      audioRef.current = null;
+      speakWithBrowserVoice(text);
+    };
+    audio.onplay = () => setSpeaking(text);
+    audio.onended = () => {
+      if (audioRef.current === audio) audioRef.current = null;
+      setSpeaking("");
+    };
+    audio.onerror = fallbackOnce;
+    audio.play().catch(fallbackOnce);
   };
 
   const nextVerb = () => {

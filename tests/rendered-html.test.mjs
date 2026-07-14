@@ -32,16 +32,22 @@ test("server-renders the finished English learning site", async () => {
 });
 
 test("includes speech, practice, verified vocabulary details, source imagery, and social artwork", async () => {
-  const [page, details, visuals, layout, packageJson, visualFiles] = await Promise.all([
+  const [page, details, visuals, audioManifest, audioGenerator, audioBatch, layout, packageJson, visualFiles, audioFiles] = await Promise.all([
     readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/vocab-details.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/vocab-visuals.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/audio-manifest.ts", import.meta.url), "utf8"),
+    readFile(new URL("../scripts/generate-tts.mjs", import.meta.url), "utf8"),
+    readFile(new URL("../scripts/kokoro-batch.py", import.meta.url), "utf8"),
     readFile(new URL("../app/layout.tsx", import.meta.url), "utf8"),
     readFile(new URL("../package.json", import.meta.url), "utf8"),
     readdir(new URL("../public/vocab-art/", import.meta.url)),
+    readdir(new URL("../public/audio/tts/", import.meta.url)),
   ]);
 
   assert.match(page, /SpeechSynthesisUtterance/);
+  assert.match(page, /new Audio\(assetPath\(recordedPath\)\)/);
+  assert.match(page, /audioManifest\[text\]/);
   assert.match(page, /useState\(0\.62\)/);
   assert.match(page, /常用搭配/);
   assert.match(page, /教材原句/);
@@ -59,6 +65,15 @@ test("includes speech, practice, verified vocabulary details, source imagery, an
   const vocabularyVisualSource = visuals.split("] as const")[0];
   assert.equal((vocabularyVisualSource.match(/"[^\"]+"/g) ?? []).length, 93);
   assert.equal(visualFiles.filter((file) => /^v\d{3}\.webp$/.test(file)).length, 93);
+  assert.match(audioManifest, /Record<string, string>/);
+  assert.equal((audioManifest.match(/\/audio\/tts\/[a-f0-9]{20}\.m4a/g) ?? []).length, 336);
+  assert.equal(audioFiles.filter((file) => /^[a-f0-9]{20}\.m4a$/.test(file)).length, 336);
+  assert.match(audioGenerator, /KOKORO_VOICE \|\| "bf_emma"/);
+  assert.match(audioGenerator, /cleanForSpeech/);
+  assert.match(audioBatch, /lang="en-gb"/);
+  assert.match(audioBatch, /\/usr\/bin\/afconvert/);
+  assert.match(audioGenerator, /detail\.collocations/);
+  assert.match(audioGenerator, /detail\.bookSentence/);
   assert.match(layout, /openGraph/);
   assert.match(layout, /\/og\.png/);
   assert.doesNotMatch(packageJson, /react-loading-skeleton/);

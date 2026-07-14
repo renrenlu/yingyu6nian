@@ -42,4 +42,6 @@ next-env.d.ts
 /work/
 /.npm-cache/
 /tmp/
+.tts-runtime/
+.tts-models/
 *.tsbuildinfo
