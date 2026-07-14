@@ -38,7 +38,7 @@ test("includes speech, practice, verified vocabulary details, source imagery, an
     readFile(new URL("../app/vocab-visuals.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/audio-manifest.ts", import.meta.url), "utf8"),
     readFile(new URL("../scripts/generate-tts.mjs", import.meta.url), "utf8"),
-    readFile(new URL("../scripts/kokoro-batch.py", import.meta.url), "utf8"),
+    readFile(new URL("../scripts/edge-tts-batch.py", import.meta.url), "utf8"),
     readFile(new URL("../app/layout.tsx", import.meta.url), "utf8"),
     readFile(new URL("../package.json", import.meta.url), "utf8"),
     readdir(new URL("../public/vocab-art/", import.meta.url)),
@@ -66,16 +66,17 @@ test("includes speech, practice, verified vocabulary details, source imagery, an
   assert.equal((vocabularyVisualSource.match(/"[^\"]+"/g) ?? []).length, 93);
   assert.equal(visualFiles.filter((file) => /^v\d{3}\.webp$/.test(file)).length, 93);
   assert.match(audioManifest, /Record<string, string>/);
-  assert.equal((audioManifest.match(/\/audio\/tts\/[a-f0-9]{20}\.m4a/g) ?? []).length, 548);
-  assert.equal(audioFiles.filter((file) => /^[a-f0-9]{20}\.m4a$/.test(file)).length, 548);
+  assert.equal((audioManifest.match(/\/audio\/tts\/[a-f0-9]{20}\.mp3/g) ?? []).length, 548);
+  assert.equal(audioFiles.filter((file) => /^[a-f0-9]{20}\.mp3$/.test(file)).length, 548);
   assert.match(audioManifest, /"Welcome to English Playbook\. Let’s learn English together!"/);
   assert.match(audioManifest, /"write\. wrote"/);
   assert.match(audioManifest, /"hundredth"/);
   assert.match(audioManifest, /"December"/);
-  assert.match(audioGenerator, /KOKORO_VOICE \|\| "bf_emma"/);
+  assert.match(audioGenerator, /EDGE_TTS_VOICE \|\| "zh-CN-XiaoxiaoNeural"/);
+  assert.match(audioGenerator, /EDGE_TTS_RATE \|\| "-12%"/);
   assert.match(audioGenerator, /cleanForSpeech/);
-  assert.match(audioBatch, /lang="en-gb"/);
-  assert.match(audioBatch, /\/usr\/bin\/afconvert/);
+  assert.match(audioBatch, /edge_tts\.Communicate/);
+  assert.match(audioBatch, /rate=rate/);
   assert.match(audioGenerator, /detail\.collocations/);
   assert.match(audioGenerator, /detail\.bookSentence/);
   assert.match(layout, /openGraph/);

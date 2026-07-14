@@ -183,7 +183,7 @@ export default function Home() {
     const audio = new Audio(assetPath(recordedPath));
     audioRef.current = audio;
     audio.preload = "auto";
-    audio.playbackRate = rate === 0.62 ? 0.86 : 1;
+    audio.playbackRate = rate === 0.62 ? 1 : 1.12;
     audio.preservesPitch = true;
     let usedFallback = false;
     const fallbackOnce = () => {
@@ -224,7 +224,7 @@ export default function Home() {
         <a className="brand" href="#top" aria-label="回到顶部"><span>EP</span> English Playbook</a>
         <div className="source-pill">教材 P.78–90</div>
         <div className="speed-control" aria-label="朗读速度">
-          <span>朗读</span>
+          <span>晓晓朗读</span>
           <button className={rate === 0.62 ? "active" : ""} onClick={() => setRate(0.62)}>慢速</button>
           <button className={rate === 0.82 ? "active" : ""} onClick={() => setRate(0.82)}>常速</button>
         </div>
@@ -434,7 +434,7 @@ export default function Home() {
         </section>
       </main>
 
-      <footer><div><strong>English Playbook</strong><span>六上英语 · P.78–90 互动复习</span></div><p>内容依据用户提供的教材页面整理。朗读由浏览器语音功能生成，实际声音因设备而异。</p><a href="#top">回到顶部 ↑</a></footer>
+      <footer><div><strong>English Playbook</strong><span>六上英语 · P.78–90 互动复习</span></div><p>内容依据用户提供的教材页面整理。朗读统一采用晓晓神经女声，默认语速为 -12%。</p><a href="#top">回到顶部 ↑</a></footer>
     </div>
   );
 }

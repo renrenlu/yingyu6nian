@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { access, mkdir, writeFile } from "node:fs/promises";
+import { access, mkdir, readdir, unlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 import process from "node:process";
 import { spawn } from "node:child_process";
@@ -11,12 +11,11 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const audioDir = path.join(root, "public", "audio", "tts");
 const manifestFile = path.join(root, "app", "audio-manifest.ts");
 const runtimePython = path.join(root, ".tts-runtime", "bin", "python");
-const modelFile = path.join(root, ".tts-models", "kokoro-v1.0.onnx");
-const voicesFile = path.join(root, ".tts-models", "voices-v1.0.bin");
-const jobsFile = path.join(root, "work", "kokoro-jobs.json");
-const batchScript = path.join(root, "scripts", "kokoro-batch.py");
-const voice = process.env.KOKORO_VOICE || "bf_emma";
-const speed = Number(process.env.KOKORO_SPEED || "0.90");
+const jobsFile = path.join(root, "work", "edge-tts-jobs.json");
+const batchScript = path.join(root, "scripts", "edge-tts-batch.py");
+const voice = process.env.EDGE_TTS_VOICE || "zh-CN-XiaoxiaoNeural";
+const rate = process.env.EDGE_TTS_RATE || "-12%";
+const concurrency = Number(process.env.EDGE_TTS_CONCURRENCY || "5");
 
 const irregularVerbs = [
   ["be", "was / were"], ["become", "became"], ["begin", "began"], ["blow", "blew"], ["break", "broke"],
@@ -110,7 +109,7 @@ function collectTexts() {
 }
 
 function fileNameFor(text) {
-  return `${createHash("sha256").update(text).digest("hex").slice(0, 20)}.m4a`;
+  return `${createHash("sha256").update(text).digest("hex").slice(0, 20)}.mp3`;
 }
 
 async function fileExists(file) {
@@ -151,8 +150,17 @@ function runBatch() {
       stdio: "inherit",
     });
     child.on("error", reject);
-    child.on("exit", (code) => code === 0 ? resolve() : reject(new Error(`Kokoro batch exited with code ${code}`)));
+    child.on("exit", (code) => code === 0 ? resolve() : reject(new Error(`Edge TTS batch exited with code ${code}`)));
   });
+}
+
+async function removeStaleAudioFiles(texts) {
+  const keep = new Set(texts.map(fileNameFor));
+  for (const fileName of await readdir(audioDir)) {
+    if (!keep.has(fileName) && /\.(?:m4a|mp3)$/.test(fileName)) {
+      await unlink(path.join(audioDir, fileName));
+    }
+  }
 }
 
 async function main() {
@@ -163,9 +171,7 @@ async function main() {
     return;
   }
 
-  await requireFile(runtimePython, "Kokoro runtime is not installed. Run `npm run audio:setup` first.");
-  await requireFile(modelFile, "Kokoro model is not installed. Run `npm run audio:setup` first.");
-  await requireFile(voicesFile, "Kokoro voices are not installed. Run `npm run audio:setup` first.");
+  await requireFile(runtimePython, "Edge TTS runtime is not installed. Run `npm run audio:setup` first.");
   await mkdir(audioDir, { recursive: true });
   await mkdir(path.dirname(jobsFile), { recursive: true });
 
@@ -176,14 +182,15 @@ async function main() {
   }
 
   if (jobs.length) {
-    await writeFile(jobsFile, JSON.stringify({ modelFile, voicesFile, voice, speed, jobs }, null, 2), "utf8");
-    console.log(`Generating ${jobs.length} of ${texts.length} clips with Kokoro ${voice} at ${speed}× speed.`);
+    await writeFile(jobsFile, JSON.stringify({ voice, rate, concurrency, jobs }, null, 2), "utf8");
+    console.log(`Generating ${jobs.length} of ${texts.length} clips with Edge TTS ${voice} at ${rate} rate.`);
     await runBatch();
   }
 
   const manifestCount = await writeManifest(texts);
   if (manifestCount !== texts.length) throw new Error(`Only ${manifestCount}/${texts.length} audio files were generated.`);
-  console.log(`Done. ${manifestCount} local British-English clips are ready.`);
+  await removeStaleAudioFiles(texts);
+  console.log(`Done. ${manifestCount} Xiaoxiao Neural clips are ready.`);
 }
 
 main().catch((error) => {
