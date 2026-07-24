@@ -6,9 +6,26 @@ import { wordDetails } from "./vocab-details";
 import { wordVisuals } from "./vocab-visuals";
 
 type VocabItem = { en: string; zh: string };
+type DictationFeedback = "" | "correct" | "wrong";
 
 const assetBase = process.env.NEXT_PUBLIC_BASE_PATH || "";
 const assetPath = (path: string) => `${assetBase}${path}`;
+
+const shuffleVocabulary = (items: VocabItem[]) => {
+  const shuffled = [...items];
+  for (let index = shuffled.length - 1; index > 0; index -= 1) {
+    const randomIndex = Math.floor(Math.random() * (index + 1));
+    [shuffled[index], shuffled[randomIndex]] = [shuffled[randomIndex], shuffled[index]];
+  }
+  return shuffled;
+};
+
+const normalizeSpelling = (value: string) => value
+  .trim()
+  .toLocaleLowerCase("en")
+  .replace(/[’‘]/g, "'")
+  .replace(/[.!?…]+$/g, "")
+  .replace(/\s+/g, " ");
 
 const vocabulary: Record<string, { title: string; color: string; items: VocabItem[] }> = {
   "Unit 1": {
@@ -136,10 +153,22 @@ export default function Home() {
   const [answers, setAnswers] = useState<Record<number, number>>({});
   const [checked, setChecked] = useState(false);
   const [done, setDone] = useState<string[]>([]);
+  const [dictationQueue, setDictationQueue] = useState<VocabItem[]>([]);
+  const [dictationIndex, setDictationIndex] = useState(0);
+  const [dictationInput, setDictationInput] = useState("");
+  const [dictationFeedback, setDictationFeedback] = useState<DictationFeedback>("");
+  const [dictationCorrect, setDictationCorrect] = useState(0);
+  const [dictationMistakes, setDictationMistakes] = useState<VocabItem[]>([]);
+  const [dictationFinished, setDictationFinished] = useState(false);
+  const dictationInputRef = useRef<HTMLInputElement>(null);
 
   const score = useMemo(() => quiz.reduce((sum, item, i) => sum + (answers[i] === item.answer ? 1 : 0), 0), [answers]);
   const selectedItem = selectedWord ? vocabulary[unit].items.find((item) => item.en === selectedWord) : undefined;
   const selectedDetail = selectedWord ? wordDetails[selectedWord] : undefined;
+  const dictationItem = dictationQueue[dictationIndex];
+  const dictationProgress = dictationQueue.length
+    ? Math.round(((dictationIndex + (dictationFeedback ? 1 : 0)) / dictationQueue.length) * 100)
+    : 0;
 
   useEffect(() => {
     const closeOnEscape = (event: KeyboardEvent) => event.key === "Escape" && setSelectedWord("");
@@ -199,6 +228,60 @@ export default function Home() {
     };
     audio.onerror = fallbackOnce;
     audio.play().catch(fallbackOnce);
+  };
+
+  const startDictation = (items: VocabItem[] = vocabulary[unit].items) => {
+    const queue = shuffleVocabulary(items);
+    if (!queue.length) return;
+    setSelectedWord("");
+    setDictationQueue(queue);
+    setDictationIndex(0);
+    setDictationInput("");
+    setDictationFeedback("");
+    setDictationCorrect(0);
+    setDictationMistakes([]);
+    setDictationFinished(false);
+    speak(queue[0].en);
+    window.setTimeout(() => dictationInputRef.current?.focus(), 0);
+  };
+
+  const closeDictation = () => {
+    audioRef.current?.pause();
+    audioRef.current = null;
+    window.speechSynthesis?.cancel();
+    setSpeaking("");
+    setDictationQueue([]);
+    setDictationIndex(0);
+    setDictationInput("");
+    setDictationFeedback("");
+    setDictationCorrect(0);
+    setDictationMistakes([]);
+    setDictationFinished(false);
+  };
+
+  const checkDictation = () => {
+    if (!dictationItem || !dictationInput.trim() || dictationFeedback) return;
+    const isCorrect = normalizeSpelling(dictationInput) === normalizeSpelling(dictationItem.en);
+    setDictationFeedback(isCorrect ? "correct" : "wrong");
+    if (isCorrect) {
+      setDictationCorrect((current) => current + 1);
+    } else {
+      setDictationMistakes((current) => [...current, dictationItem]);
+    }
+  };
+
+  const nextDictation = () => {
+    if (!dictationItem || !dictationFeedback) return;
+    if (dictationIndex >= dictationQueue.length - 1) {
+      setDictationFinished(true);
+      return;
+    }
+    const nextIndex = dictationIndex + 1;
+    setDictationIndex(nextIndex);
+    setDictationInput("");
+    setDictationFeedback("");
+    speak(dictationQueue[nextIndex].en);
+    window.setTimeout(() => dictationInputRef.current?.focus(), 0);
   };
 
   const nextVerb = () => {
@@ -290,26 +373,119 @@ export default function Home() {
               <p>先听英文，再看中文；最后遮住中文自己说。正在朗读的卡片会亮起来。</p>
             </div>
             <div className="unit-tabs" role="tablist" aria-label="选择单元">
-              {Object.keys(vocabulary).map((key) => <button key={key} role="tab" aria-selected={unit === key} onClick={() => { setUnit(key); setSelectedWord(""); }} style={{ "--tab-color": vocabulary[key].color } as React.CSSProperties}>{key}<span>{vocabulary[key].title}</span></button>)}
+              {Object.keys(vocabulary).map((key) => <button key={key} role="tab" aria-selected={unit === key} onClick={() => { setUnit(key); setSelectedWord(""); closeDictation(); }} style={{ "--tab-color": vocabulary[key].color } as React.CSSProperties}>{key}<span>{vocabulary[key].title}</span></button>)}
             </div>
             <div className="vocab-toolbar">
               <div><span className="unit-dot" style={{ background: vocabulary[unit].color }} />{unit} · {vocabulary[unit].title}</div>
-              <button onClick={() => speak(vocabulary[unit].items.map((item) => item.en).join(". "))}>♪ 连续听本组</button>
+              <div className="vocab-toolbar-actions">
+                <button onClick={() => speak(vocabulary[unit].items.map((item) => item.en).join(". "))}>♪ 连续听本组</button>
+                <button className="dictation-launch" onClick={() => startDictation()}>✎ 开始本组默写</button>
+              </div>
             </div>
-            <div className="vocab-grid">
-              {vocabulary[unit].items.map((item, index) => (
-                <article key={item.en} className={`vocab-card ${speaking === item.en ? "speaking" : ""}`}>
-                  <button className="vocab-card-open" onClick={() => setSelectedWord(item.en)} aria-label={`查看 ${item.en} 的详细讲解`}>
-                    <img className="vocab-thumb" src={wordVisuals[item.en]} alt="" />
-                    <span className="vocab-card-copy">
-                      <span className="card-index">{String(index + 1).padStart(2, "0")}</span>
-                      <strong>{item.en}</strong><small>{item.zh}</small><span className="detail-hint">看图 · 音标 · 原句 <b>→</b></span>
-                    </span>
-                  </button>
-                  <button className="mini-speaker" onClick={() => speak(item.en)} aria-label={`朗读 ${item.en}`}>♪</button>
-                </article>
-              ))}
-            </div>
+            {dictationQueue.length ? (
+              <section className="dictation-panel" aria-labelledby="dictation-title">
+                <div className="dictation-panel-head">
+                  <div>
+                    <p>LISTEN & SPELL</p>
+                    <h3 id="dictation-title">{unit} 词汇默写</h3>
+                  </div>
+                  <button className="dictation-close" onClick={closeDictation} aria-label="退出默写">×</button>
+                </div>
+
+                {!dictationFinished && dictationItem ? (
+                  <>
+                    <div className="dictation-progress-row">
+                      <span>第 {dictationIndex + 1} 题，共 {dictationQueue.length} 题</span>
+                      <strong>答对 {dictationCorrect} 题</strong>
+                    </div>
+                    <div className="dictation-progress" aria-label={`默写进度 ${dictationProgress}%`}>
+                      <span style={{ width: `${dictationProgress}%` }} />
+                    </div>
+                    <div className="dictation-workspace">
+                      <div className="dictation-prompt">
+                        <span className="dictation-step">1 · 听发音</span>
+                        <button
+                          className={`dictation-speaker ${speaking === dictationItem.en ? "speaking" : ""}`}
+                          onClick={() => speak(dictationItem.en)}
+                          aria-label="重播当前默写题"
+                        >
+                          <b>♪</b><small>{speaking === dictationItem.en ? "正在播放" : "点击重播"}</small>
+                        </button>
+                        <p><span>中文提示</span><strong>{dictationItem.zh}</strong></p>
+                      </div>
+                      <div className="dictation-answer">
+                        <span className="dictation-step">2 · 写拼写</span>
+                        <label htmlFor="dictation-input">听到的英文是</label>
+                        <input
+                          ref={dictationInputRef}
+                          id="dictation-input"
+                          value={dictationInput}
+                          onChange={(event) => {
+                            setDictationInput(event.target.value);
+                            if (dictationFeedback) setDictationFeedback("");
+                          }}
+                          onKeyDown={(event) => {
+                            if (event.key !== "Enter") return;
+                            if (dictationFeedback) nextDictation();
+                            else checkDictation();
+                          }}
+                          placeholder="Type what you hear…"
+                          autoCapitalize="none"
+                          autoComplete="off"
+                          spellCheck={false}
+                          readOnly={Boolean(dictationFeedback)}
+                        />
+                        <p className="dictation-key-hint">可以忽略句末标点；直引号和弯引号都算正确。</p>
+                        {!dictationFeedback ? (
+                          <button className="dictation-check" onClick={checkDictation} disabled={!dictationInput.trim()}>检查拼写</button>
+                        ) : (
+                          <div className={`dictation-result ${dictationFeedback}`} role="status" aria-live="polite">
+                            <p>{dictationFeedback === "correct" ? "✓ 拼对了！" : "再看一眼正确拼写："}</p>
+                            <strong>{dictationItem.en}</strong>
+                            {dictationFeedback === "wrong" && <small>你的答案：{dictationInput}</small>}
+                            <button onClick={nextDictation}>{dictationIndex === dictationQueue.length - 1 ? "查看成绩" : "下一题 →"}</button>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </>
+                ) : (
+                  <div className="dictation-summary" role="status" aria-live="polite">
+                    <div className="dictation-score">
+                      <span>本轮成绩</span>
+                      <strong>{dictationCorrect}<small>/ {dictationQueue.length}</small></strong>
+                      <p>{dictationMistakes.length === 0 ? "全部拼对，太棒了！" : `已经掌握 ${dictationCorrect} 题，再练 ${dictationMistakes.length} 个错词就稳了。`}</p>
+                    </div>
+                    {dictationMistakes.length > 0 && (
+                      <div className="dictation-mistakes">
+                        <h4>本轮错词</h4>
+                        <div>{dictationMistakes.map((item) => <button key={item.en} onClick={() => speak(item.en)}>{item.en}<span>♪</span></button>)}</div>
+                      </div>
+                    )}
+                    <div className="dictation-summary-actions">
+                      {dictationMistakes.length > 0 && <button className="retry-mistakes" onClick={() => startDictation(dictationMistakes)}>只练错词</button>}
+                      <button onClick={() => startDictation()}>整组再来一次</button>
+                      <button onClick={closeDictation}>返回词汇卡</button>
+                    </div>
+                  </div>
+                )}
+              </section>
+            ) : (
+              <div className="vocab-grid">
+                {vocabulary[unit].items.map((item, index) => (
+                  <article key={item.en} className={`vocab-card ${speaking === item.en ? "speaking" : ""}`}>
+                    <button className="vocab-card-open" onClick={() => setSelectedWord(item.en)} aria-label={`查看 ${item.en} 的详细讲解`}>
+                      <img className="vocab-thumb" src={wordVisuals[item.en]} alt="" />
+                      <span className="vocab-card-copy">
+                        <span className="card-index">{String(index + 1).padStart(2, "0")}</span>
+                        <strong>{item.en}</strong><small>{item.zh}</small><span className="detail-hint">看图 · 音标 · 原句 <b>→</b></span>
+                      </span>
+                    </button>
+                    <button className="mini-speaker" onClick={() => speak(item.en)} aria-label={`朗读 ${item.en}`}>♪</button>
+                  </article>
+                ))}
+              </div>
+            )}
             <p className="source-note">内容核对说明：教材原句逐页取自本书；标注“按教材词库补全”的句子来自原练习及其词库答案。若单词只出现在词汇栏，原句区会采用同单元相关原句，并在页码说明中明确标出。</p>
           </div>
         </section>

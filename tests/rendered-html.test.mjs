@@ -24,6 +24,7 @@ test("server-renders the finished English learning site", async () => {
   assert.match(html, /<html lang="zh-CN">/i);
   assert.match(html, /<title>English Playbook｜六上英语 P\.78–90 互动复习<\/title>/i);
   assert.match(html, /词汇点读馆/);
+  assert.match(html, /开始本组默写/);
   assert.match(html, /不规则动词闯关/);
   assert.match(html, /语法地图/);
   assert.match(html, /6 题结课挑战/);
@@ -58,6 +59,10 @@ test("includes speech, practice, verified vocabulary details, source imagery, an
   assert.equal(textbookPairs.length, 93);
   assert.equal(createHash("sha256").update(JSON.stringify(textbookPairs)).digest("hex"), "1fc41c6b776ea048bfc2fa6609b4374745bf3242486f7683bcb4198d2d8a870f");
   assert.match(page, /setVerbFeedback/);
+  assert.match(page, /startDictation/);
+  assert.match(page, /checkDictation/);
+  assert.match(page, /只练错词/);
+  assert.match(page, /normalizeSpelling/);
   assert.match(page, /setAnswers/);
   assert.match(page, /textbook\/fruit\.jpg/);
   assert.equal((details.match(/^  ".+": d\(/gm) ?? []).length, 93);
