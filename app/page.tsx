@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { audioManifest } from "./audio-manifest";
 import { wordDetails } from "./vocab-details";
 import { wordVisuals } from "./vocab-visuals";
@@ -143,6 +143,9 @@ export default function Home() {
   const [rate, setRate] = useState(0.62);
   const [speaking, setSpeaking] = useState("");
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const audioCacheRef = useRef<Map<string, { audio: HTMLAudioElement; objectUrl: string }>>(new Map());
+  const audioLoadPromisesRef = useRef<Map<string, Promise<HTMLAudioElement | null>>>(new Map());
+  const playbackRequestRef = useRef(0);
   const [unit, setUnit] = useState("Unit 1");
   const [selectedWord, setSelectedWord] = useState("");
   const [verbIndex, setVerbIndex] = useState(0);
@@ -170,15 +173,79 @@ export default function Home() {
     ? Math.round(((dictationIndex + (dictationFeedback ? 1 : 0)) / dictationQueue.length) * 100)
     : 0;
 
+  const prepareRecordedAudio = useCallback((text: string) => {
+    const cached = audioCacheRef.current.get(text);
+    if (cached) return Promise.resolve(cached.audio);
+
+    const pending = audioLoadPromisesRef.current.get(text);
+    if (pending) return pending;
+
+    const recordedPath = audioManifest[text];
+    if (!recordedPath) return Promise.resolve(null);
+
+    const sourceUrl = assetPath(recordedPath);
+    const loadPromise = fetch(sourceUrl, { cache: "force-cache" })
+      .then((response) => {
+        if (!response.ok) throw new Error(`Audio request failed: ${response.status}`);
+        return response.blob();
+      })
+      .then((blob) => {
+        const objectUrl = URL.createObjectURL(blob);
+        const audio = new Audio(objectUrl);
+        audio.preload = "auto";
+        audio.load();
+        audioCacheRef.current.set(text, { audio, objectUrl });
+        return audio;
+      })
+      .catch(() => {
+        const audio = new Audio(sourceUrl);
+        audio.preload = "auto";
+        audio.load();
+        audioCacheRef.current.set(text, { audio, objectUrl: "" });
+        return audio;
+      })
+      .finally(() => audioLoadPromisesRef.current.delete(text));
+
+    audioLoadPromisesRef.current.set(text, loadPromise);
+    return loadPromise;
+  }, []);
+
   useEffect(() => {
+    const audioCache = audioCacheRef.current;
+    const audioLoadPromises = audioLoadPromisesRef.current;
     const closeOnEscape = (event: KeyboardEvent) => event.key === "Escape" && setSelectedWord("");
     window.addEventListener("keydown", closeOnEscape);
     return () => {
       window.removeEventListener("keydown", closeOnEscape);
+      playbackRequestRef.current += 1;
       audioRef.current?.pause();
+      audioCache.forEach(({ audio, objectUrl }) => {
+        audio.pause();
+        if (objectUrl) URL.revokeObjectURL(objectUrl);
+      });
+      audioCache.clear();
+      audioLoadPromises.clear();
       window.speechSynthesis?.cancel();
     };
   }, []);
+
+  useEffect(() => {
+    const preloadUnit = () => {
+      vocabulary[unit].items.forEach((item) => {
+        void prepareRecordedAudio(item.en);
+      });
+    };
+    const idleWindow = window as Window & {
+      requestIdleCallback?: (callback: () => void, options?: { timeout: number }) => number;
+      cancelIdleCallback?: (id: number) => void;
+    };
+    if (idleWindow.requestIdleCallback) {
+      const idleId = idleWindow.requestIdleCallback(preloadUnit, { timeout: 900 });
+      return () => idleWindow.cancelIdleCallback?.(idleId);
+    }
+    const timeoutId = window.setTimeout(preloadUnit, 0);
+    return () => window.clearTimeout(timeoutId);
+  }, [unit, prepareRecordedAudio]);
 
   const speakWithBrowserVoice = (text: string) => {
     if (!("speechSynthesis" in window)) {
@@ -197,11 +264,14 @@ export default function Home() {
     window.speechSynthesis.speak(utterance);
   };
 
-  const speak = (text: string) => {
+  const speak = async (text: string) => {
     if (typeof window === "undefined") return;
+    const requestId = playbackRequestRef.current + 1;
+    playbackRequestRef.current = requestId;
     audioRef.current?.pause();
     audioRef.current = null;
     window.speechSynthesis?.cancel();
+    setSpeaking(text);
 
     const recordedPath = audioManifest[text];
     if (!recordedPath) {
@@ -209,25 +279,32 @@ export default function Home() {
       return;
     }
 
-    const audio = new Audio(assetPath(recordedPath));
+    const audio = await prepareRecordedAudio(text);
+    if (!audio || playbackRequestRef.current !== requestId) return;
     audioRef.current = audio;
-    audio.preload = "auto";
+    try {
+      audio.currentTime = 0;
+    } catch {
+      // Some browsers do not allow seeking until metadata is ready.
+    }
     audio.playbackRate = rate === 0.62 ? 1 : 1.12;
     audio.preservesPitch = true;
     let usedFallback = false;
     const fallbackOnce = () => {
-      if (usedFallback || audioRef.current !== audio) return;
+      if (usedFallback || audioRef.current !== audio || playbackRequestRef.current !== requestId) return;
       usedFallback = true;
       audioRef.current = null;
+      const failedCachedAudio = audioCacheRef.current.get(text);
+      if (failedCachedAudio?.objectUrl) URL.revokeObjectURL(failedCachedAudio.objectUrl);
+      audioCacheRef.current.delete(text);
       speakWithBrowserVoice(text);
     };
-    audio.onplay = () => setSpeaking(text);
     audio.onended = () => {
       if (audioRef.current === audio) audioRef.current = null;
-      setSpeaking("");
+      if (playbackRequestRef.current === requestId) setSpeaking("");
     };
     audio.onerror = fallbackOnce;
-    audio.play().catch(fallbackOnce);
+    void audio.play().catch(fallbackOnce);
   };
 
   const startDictation = (items: VocabItem[] = vocabulary[unit].items) => {
@@ -474,14 +551,14 @@ export default function Home() {
               <div className="vocab-grid">
                 {vocabulary[unit].items.map((item, index) => (
                   <article key={item.en} className={`vocab-card ${speaking === item.en ? "speaking" : ""}`}>
-                    <button className="vocab-card-open" onClick={() => setSelectedWord(item.en)} aria-label={`查看 ${item.en} 的详细讲解`}>
+                    <button className="vocab-card-open" onClick={() => setSelectedWord(item.en)} onPointerEnter={() => void prepareRecordedAudio(item.en)} aria-label={`查看 ${item.en} 的详细讲解`}>
                       <img className="vocab-thumb" src={wordVisuals[item.en]} alt="" />
                       <span className="vocab-card-copy">
                         <span className="card-index">{String(index + 1).padStart(2, "0")}</span>
                         <strong>{item.en}</strong><small>{item.zh}</small><span className="detail-hint">看图 · 音标 · 原句 <b>→</b></span>
                       </span>
                     </button>
-                    <button className="mini-speaker" onClick={() => speak(item.en)} aria-label={`朗读 ${item.en}`}>♪</button>
+                    <button className="mini-speaker" onPointerDown={() => void prepareRecordedAudio(item.en)} onFocus={() => void prepareRecordedAudio(item.en)} onClick={() => speak(item.en)} aria-label={`朗读 ${item.en}`}>♪</button>
                   </article>
                 ))}
               </div>

@@ -47,8 +47,13 @@ test("includes speech, practice, verified vocabulary details, source imagery, an
   ]);
 
   assert.match(page, /SpeechSynthesisUtterance/);
-  assert.match(page, /new Audio\(assetPath\(recordedPath\)\)/);
+  assert.match(page, /new Audio\(objectUrl\)/);
+  assert.match(page, /new Audio\(sourceUrl\)/);
   assert.match(page, /audioManifest\[text\]/);
+  assert.match(page, /audioCacheRef/);
+  assert.match(page, /prepareRecordedAudio/);
+  assert.match(page, /fetch\(sourceUrl, \{ cache: "force-cache" \}\)/);
+  assert.match(page, /requestIdleCallback/);
   assert.match(page, /useState\(0\.62\)/);
   assert.match(page, /常用搭配/);
   assert.match(page, /教材原句/);
